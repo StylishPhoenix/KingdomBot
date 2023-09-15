@@ -1,23 +1,29 @@
-const { Client, Intents } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
+const {token} = require('./config.json')
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent ] });
 
 const prefix = '/';
 const kingdoms = ['Kingdom1', 'Kingdom2', 'Kingdom3', 'Kingdom4'];
 const kingdomControl = [25, 25, 25, 25];
+const currentKingdomControl = new SlashCommandBuilder()
+    .setName('current_kingdom_control')
+    .setDescription('Shows current kingdom control');
+const commands =  [
+    currentKingdomControl.toJSON(),
+];
 
-client.once('ready', () => {
+
+client.once('ready', async () => {
     console.log(`Logged in as ${client.user.tag}!`);
+    await client.application.commands.set(commands);
+    console.log('Commands registered.')
 });
 
-client.on('messageCreate', async message => {
-    if (!message.content.startsWith(prefix) || message.author.bot) return;
-
-    const args = message.content.slice(prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-
-    if (command === 'kingdoms') {
+client.on('interactionCreate', async interaction => {
+    const { commandName } = interaction;
+    if (commandName === 'kingdoms') {
         const canvas = createCanvas(500, 500);
         const context = canvas.getContext('2d');
 
@@ -36,8 +42,9 @@ client.on('messageCreate', async message => {
 });
 
         const attachment = new Discord.MessageAttachment(canvas.toBuffer(), 'kingdom-control.png');
-        message.channel.send({ files: [attachment] });
+        interaction.deferReply();
+        interaction.editReply({ files: [attachment] });
     }
 });
 
-client.login('YOUR_BOT_TOKEN');
+client.login(token);

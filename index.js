@@ -1,6 +1,7 @@
 const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
-const {token} = require('./config.json')
+const {token, guild } = require('./config.json')
+const userPointsData = {};
 
 const fs = require('fs');
 
@@ -21,7 +22,14 @@ client.once('ready', async () => {
     await client.application.commands.set(commands);
     console.log('Commands registered.')
     load_points();
-    save_points();
+});
+
+client.on("messageCreate", async (message) => {
+    if (!message.guild || message.author.bot) return;
+    const userId = message.author.id;
+    const kingdom = await getUserKingdom(message.guild, userId)
+    if (!kingdom) return;
+    calculatePoints(userId, kingdom, message.content);
 });
 
 client.on('interactionCreate', async interaction => {
@@ -114,6 +122,75 @@ client.on('interactionCreate', async interaction => {
         interaction.reply({ files: [attachment] });
     }
 });
+function calculatePoints(userId, kingdom, message){
+    const now = Date.now();
+     if(!userPointsData.hasOwnProperty(userId)){
+        userPointsData[userId] = {
+        lastMessageTimestamp: Date.now() - 60000,
+        points: 0,
+        messageInCurrentInterval: 0,
+        pointsScheduled: false,
+        }
+     };
+     if(message.length < 10) {
+        userPointsData[userId].lastMessageTimestamp = now;
+        return;
+     }
+     const elaspedTime = now - userPointsData[userId].lastMessageTimestamp;
+     if(elaspedTime < 30000){
+        userPointsData[userId].lastMessageTimestamp = now;
+        return;
+     }
+     if (userPointsData[userId].messageInCurrentInterval < 5){
+        userPointsData[userId].points += 10;
+     }
+    
+     userPointsData[userId].messageInCurrentInterval++;
+
+     userPointsData[userId].lastMessageTimestamp = now;
+
+     if (userPointsData[userId].points > 50) {
+        userPointsData[userId].points = 50;
+     }
+    if (!userPointsData[userId].pointsScheduled){
+        scheduleAddPoints(userId, kingdom);
+    }
+
+}
+
+function scheduleAddPoints(userId, kingdom){
+    userPointsData[userId].pointsScheduled = true;
+    setTimeout(() => {
+        const earnedPoints = userPointsData[userId].points;
+        userPointsData[userId].points = 0;
+        userPointsData[userId].messageInCurrentInterval = 0;
+        addPointsForUser(kingdom, earnedPoints);
+        userPointsData[userId].pointsScheduled = false;
+    }, 1000);
+}
+
+function addPointsForUser(kingdom, points){
+    console.log('add points');
+    if (kingdom_points.hasOwnProperty(kingdom)){
+        kingdom_points[kingdom] += points;
+        let viableKingdoms = Object.keys(kingdom_points);
+        viableKingdoms = viableKingdoms.filter( k => k !== kingdom);
+        const randomKingdom = viableKingdoms[Math.floor(Math.random() * viableKingdoms.length)];
+        kingdom_points[randomKingdom] -= points;
+        save_points();
+    }
+}
+async function getUserKingdom(guild, userId){
+    const member = await guild.members.fetch(userId);
+    
+    for(const role of member.roles.cache.values()){
+        if(kingdom_points.hasOwnProperty(role.name)){
+            return role.name;
+        }
+    }
+
+    return null;
+}
 
 function save_points(){
   let data = '';

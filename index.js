@@ -1,12 +1,11 @@
-const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 const {token} = require('./config.json')
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent ] });
 
-const prefix = '/';
 const kingdoms = ['Kingdom1', 'Kingdom2', 'Kingdom3', 'Kingdom4'];
-const kingdomControl = [25, 25, 25, 25];
+const kingdomControl = [30, 20, 25, 25];
 const currentKingdomControl = new SlashCommandBuilder()
     .setName('current_kingdom_control')
     .setDescription('Shows current kingdom control');
@@ -23,7 +22,7 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     const { commandName } = interaction;
-    if (commandName === 'kingdoms') {
+    if (commandName === 'current_kingdom_control') {
         const canvas = createCanvas(500, 500);
         const context = canvas.getContext('2d');
 
@@ -41,9 +40,8 @@ client.on('interactionCreate', async interaction => {
             startAngle += controlAngle;
 });
 
-        const attachment = new Discord.MessageAttachment(canvas.toBuffer(), 'kingdom-control.png');
-        interaction.deferReply();
-        interaction.editReply({ files: [attachment] });
+        const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'kingdom-control.png' });
+        interaction.reply({ files: [attachment] });
     }
 });
 

@@ -38,7 +38,7 @@ client.on('interactionCreate', async interaction => {
         const cols = canvasWidth / squareSize;
         const totalSquares = rows * cols;
         
-        let grid = Array(rows).fill(null).map(() => Array(cols).fill(null));
+        const grid = Array.from({ length: rows }, () => Array(cols).fill(null));
         
         function getUnclaimedNeighbors(x, y) {
             let neighbors = [];
@@ -54,17 +54,28 @@ client.on('interactionCreate', async interaction => {
         
         const totalControl = Object.values(kingdom_points).reduce((a, b) => a + b, 0);
 
+        const corners = [
+            [Math.floor(cols * 0.1), Math.floor(rows * 0.1)], // top left
+            [Math.floor(cols * 0.9), Math.floor(rows * 0.1)], // top right
+            [Math.floor(cols * 0.1), Math.floor(rows * 0.9)], // bottom left
+            [Math.floor(cols * 0.9), Math.floor(rows * 0.9)], // bottom right
+        ];
+        
         Object.entries(kingdom_points).forEach(([kingdom, control], idx) => {
+
             let allocated = 0;
         
             let targetSquares = Math.round((control / totalControl) * totalSquares);
-            
-            let startX = Math.floor(Math.random() * cols);
-            let startY = Math.floor(Math.random() * rows);
         
+            if(targetSquares <= 0) {
+                return;
+            }
+        
+            let [startX, startY] = corners[idx];
+            
             let kingdomCells = [[startX, startY]];
             grid[startY][startX] = kingdom;
-        
+
             while (allocated < targetSquares - 1) {
                 if (kingdomCells.length === 0) {
                     // All cells are surrounded, no room to expand further
@@ -86,15 +97,17 @@ client.on('interactionCreate', async interaction => {
             }
         });
         
-        // Drawing the grid on the canvas
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
                 const kingdom = grid[y][x];
+                if(!kingdom) {
+                    console.log(`Unallocated cell at [${x}, ${y}]`);
+                }
                 const colorIndex = Object.keys(kingdom_points).indexOf(kingdom);
                 context.fillStyle = colors[colorIndex];
                 context.fillRect(x * squareSize, y * squareSize, squareSize, squareSize);
             }
-        }
+        }        
         
 
         const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'kingdom-control.png' });

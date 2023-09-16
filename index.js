@@ -91,6 +91,7 @@ client.on('interactionCreate', async interaction => {
                     grid[ny][nx] = kingdom;
                     kingdomCells.push([nx, ny]);
                     allocated++;
+                    console.log(`Allocated cell to ${kingdom} at [${nx}, ${ny}]`);
                 } else {
                     kingdomCells.splice(randomCellIndex, 1);
                 }

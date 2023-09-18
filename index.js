@@ -1,6 +1,6 @@
 const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
-const {token, guild } = require('./config.json')
+const {token, guildID } = require('./config.json')
 const userPointsData = {};
 
 const fs = require('fs');
@@ -22,6 +22,12 @@ client.once('ready', async () => {
     await client.application.commands.set(commands);
     console.log('Commands registered.')
     load_points();
+    const guild = client.guilds.cache.get(guildID);
+    if (guild) {
+        updateVoiceChannelPoints(guild, client);
+    } else {
+        console.error(`Guild not found with ID: ${guildID}`);
+    }
 });
 
 client.on("messageCreate", async (message) => {
@@ -157,6 +163,49 @@ function calculatePoints(userId, kingdom, message){
     }
 
 }
+
+async function updateVoiceChannelPoints(guild, client) {
+    client.on('voiceStateUpdate', async (oldState, newState) => {
+      const userId = newState.id;
+      const oldChannel = oldState.channel;
+      const newChannel = newState.channel;
+      const timeInterval = 10;
+      const pointsPerInterval = 10;
+      const minimumVoice = 3;
+  
+      if (oldChannel !== newChannel || oldState.mute !== newState.mute || oldState.deaf !== newState.deaf) {
+        if (oldChannel) {
+          // User left a voice channel or switched to another channel
+          const kingdom = await getUserHouse(guild, userId);
+          if (kingdom) {
+            const startTime = userVoiceTimes[userId];
+            const currentTime = Date.now();
+          
+       if (startTime && !isNaN(startTime)) { // Check if startTime is valid
+            const timeSpent = currentTime - startTime;
+  
+            // Calculate points based on time spent in the voice channel
+            const points = Math.floor(timeSpent / timeInterval) * pointsPerInterval;
+  
+            // Add points and log them
+            addPointsForUser(kingdom, points);
+            // await logPoints(userId, kingdom, points, 'Voice Channel Points');
+       }
+            // Remove the user's entry from userVoiceTimes
+            delete userVoiceTimes[userId];
+          }
+        }
+  
+        if (newChannel) {
+          // User joined a voice channel
+          const humanMembers = newChannel.members.filter(member => !member.user.bot && !member.voice.mute && !member.voice.deaf);
+          if (humanMembers.size >= minimumVoice) {
+            userVoiceTimes[userId] = Date.now();
+          }
+        }
+      }
+    });
+  }  
 
 function scheduleAddPoints(userId, kingdom){
     userPointsData[userId].pointsScheduled = true;

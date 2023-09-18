@@ -1,4 +1,4 @@
 Necromancer:2500
-Mesmer:2500
+Mesmer:2510
 Herbalist:2500
-Philosopher:2500
+Philosopher:2490

@@ -1,4 +1,0 @@
-Necromancer:2500
-Mesmer:2500
-Herbalist:2500
-Philosopher:2500

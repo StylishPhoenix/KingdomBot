@@ -1,11 +1,15 @@
-const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder, AttachmentBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, PermissionFlagsBits, Permission, Events, SlashCommandBuilder, AttachmentBuilder, ActionRowBuilder, EmbedBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
 const {token, guildID } = require('./config.json')
 const userPointsData = {};
+const Database = require('better-sqlite3');
 
 const fs = require('fs');
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent ] });
+
+const db = new Database('./points_log.db');
+createTableIfNotExists(db);
 
 let kingdom_points = {};
 
@@ -218,8 +222,28 @@ function scheduleAddPoints(userId, kingdom){
     }, 1000);
 }
 
+function createTableIfNotExists(db) {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS point_history (
+        id INTEGER PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        kingdom TEXT NOT NULL,
+        points INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        timestamp INTEGER NOT NULL
+      );
+    `;
+  
+    db.exec(createTableQuery);
+  } 
+
+  async function logPoints(userId, kingdom, points, reason) {
+    const timestamp = Date.now();
+    if (points == 0) return;
+    db.prepare(`INSERT INTO point_history (user_id, kingdom, points, reason, timestamp) VALUES (?, ?, ?, ?, ?)`).run(userId, kingdom, points, reason, timestamp);
+  }
+
 function addPointsForUser(kingdom, points){
-    console.log('add points');
     if (kingdom_points.hasOwnProperty(kingdom)){
         kingdom_points[kingdom] += points;
         let viableKingdoms = Object.keys(kingdom_points);
@@ -240,6 +264,53 @@ async function getUserKingdom(guild, userId){
 
     return null;
 }
+
+async function displayLeaderboard(interaction, kingdom, client, currentPage) {
+    // Retrieve the leaderboard data from the database
+  const leaderboardData = await getLeaderboardData(kingdom);
+
+  // Sort the data in decreasing order of points contributed
+  leaderboardData.sort((a, b) => b.points - a.points);
+  const limit = 10;
+  const totalPages = Math.ceil(leaderboardData.length / limit);
+  const startIndex = currentPage * limit;
+  const footer = { text: `Page ${currentPage + 1} of ${totalPages}` };
+  const userID = interaction.user.id;
+  // Format the leaderboard data
+  const splitLeaderboardPromises = leaderboardData
+    .slice(startIndex, startIndex + limit)
+    .map(async (entry, index) => {
+      const user = await client.users.fetch(entry.user_id);
+      return `${index + 1 + startIndex}. User: ${user}, Points: ${entry.points}`;
+    });
+  const splitLeaderboard = await Promise.all(splitLeaderboardPromises);
+  const formattedLeaderboard = splitLeaderboard.join('\n\n');
+
+  // Create the embed
+  const embed = new EmbedBuilder()
+    .setColor('#0099ff')
+    .setTitle(`${kingdom} Leaderboard`)
+    .setDescription(formattedLeaderboard)
+    .setFooter(footer);
+
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`leaderboard_prev_${currentPage}_${totalPages}_${kingdom}_${kingdom}_${userID}`)
+        .setLabel('Previous')
+        .setStyle('1')
+        .setDisabled(currentPage === 0),
+      new ButtonBuilder()
+        .setCustomId(`leaderboard_next_${currentPage}_${totalPages}_${kingdom}_${kingdom}_${userID}`)
+        .setLabel('Next')
+        .setStyle('1')
+        .setDisabled(currentPage === totalPages - 1)
+    );
+
+  // Send the embed as a reply
+  return { embeds: [embed], components: [row] };
+    }
+
 
 function save_points(){
   let data = '';

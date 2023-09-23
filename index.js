@@ -16,8 +16,20 @@ let kingdom_points = {};
 const currentKingdomControl = new SlashCommandBuilder()
     .setName('current_kingdom_control')
     .setDescription('Shows current kingdom control');
+
+const leaderboard = new SlashCommandBuilder()
+    .setName('top_knights')
+    .setDescription('Displays the top knights in the kingdom!')
+    .addStringOption(option => option.setName('kingdom')
+        .setDescription('Enter the kingdom name')
+        .setRequired(true)
+            .addChoices(...require('./kingdomChoices.json'))
+        );
+
+    
 const commands =  [
     currentKingdomControl.toJSON(),
+    leaderboard.toJSON(),
 ];
 
 
@@ -130,7 +142,17 @@ client.on('interactionCreate', async interaction => {
 
         const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'kingdom-control.png' });
         interaction.reply({ files: [attachment] });
+    }else if( commandName === 'top_knights'){
+        const kingdom = interaction.options.getString('kingdom');
+ // Call the displayLeaderboard function and display the leaderboard for the specified house
+        try{
+          const showLeaderboard = await displayLeaderboard(interaction, kingdom, client, 0);
+          await interaction.reply(showLeaderboard);
+        }catch{
+          await interaction.reply("It doesn't appear that this house has history yet.");
+      }
     }
+
 });
 function calculatePoints(userId, kingdom, message){
     const now = Date.now();
@@ -311,6 +333,44 @@ async function displayLeaderboard(interaction, kingdom, client, currentPage) {
   return { embeds: [embed], components: [row] };
     }
 
+    async function createPaginatedEmbed(client, interaction, targetType, targetId, currentPage) {
+        const limit = 10;
+        const pointHistoryArray = await pointHistory(db, targetType, targetId);
+        const totalPages = Math.ceil(pointHistoryArray.length / limit);
+        const startIndex = currentPage * limit;
+        const userID = interaction.user.id;
+        const footer = { text: `Page ${currentPage + 1} of ${totalPages}` };
+        const formattedHistory = await Promise.all(pointHistoryArray
+          .slice(startIndex, startIndex + limit)
+          .map( async (entry, index) => {
+            const user = await client.users.fetch(entry.user_id);
+            return `${index + 1 + startIndex}. User: ${user}, House: ${entry.kingdom}, Points: ${entry.points}, Timestamp: ${new Date(entry.timestamp).toLocaleString()}, Reason: ${entry.reason}`;
+          }));
+          const joinedHistory = formattedHistory.join('\n\n');
+      
+        const embed = new EmbedBuilder()
+          .setColor('#0099ff')
+          .setTitle('Point History')
+          .setFooter(footer)
+          .setDescription(joinedHistory);
+      
+        const row = new ActionRowBuilder()
+          .addComponents(
+            new ButtonBuilder()
+              .setCustomId(`paginate_prev_${currentPage}_${totalPages}_${targetType}_${targetId}_${userID}`)
+              .setLabel('Previous')
+              .setStyle('1')
+              .setDisabled(currentPage === 0),
+            new ButtonBuilder()
+              .setCustomId(`paginate_next_${currentPage}_${totalPages}_${targetType}_${targetId}_${userID}`)
+              .setLabel('Next')
+              .setStyle('1')
+              .setDisabled(currentPage === totalPages - 1)
+          );
+      
+        return { embeds: [embed], components: [row] };
+      }
+      
 
 function save_points(){
   let data = '';
@@ -321,13 +381,23 @@ function save_points(){
 }
 
 function load_points() {
-  if (fs.existsSync('kingdom_points.txt')) {
+  if (!fs.existsSync('kingdom_points.txt')) {
+    const data = `  
+    Necromancer:2500
+Philosopher:2500
+Herbalist:2500
+Mesmer:2500
+    `;
+
+   fs.writeFileSync('kingdom_points.txt', data.trim());
+
+  }
+
     const lines = fs.readFileSync('kingdom_points.txt', 'utf-8').split('\n');
     for (const line of lines) {
       const [kingdom, points] = line.split(':');
-      if (kingdom && points) {
-        kingdom_points[kingdom] = parseInt(points, 10);
-      }
+    if (kingdom && points) {
+      kingdom_points[kingdom] = parseInt(points, 10);
     }
   }
 }

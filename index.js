@@ -126,6 +126,24 @@ client.on('interactionCreate', async interaction => {
                 }
             }
         });
+
+        const kingdomCentroids = {};
+
+        Object.keys(kingdom_points).forEach((kingdom) => {
+          const cells = [];
+          for (let y = 0; y < rows; y++) {
+              for (let x = 0; x < cols; x++) {
+                  if (grid[y][x] === kingdom) {
+                      cells.push([x, y]);
+                  }
+              }
+          }
+          
+          const avgX = cells.reduce((sum, [x]) => sum + x, 0) / cells.length;
+          const avgY = cells.reduce((sum, [, y]) => sum + y, 0) / cells.length;
+      
+          kingdomCentroids[kingdom] = [avgX, avgY];
+      });
         
         for (let y = 0; y < rows; y++) {
             for (let x = 0; x < cols; x++) {
@@ -139,6 +157,25 @@ client.on('interactionCreate', async interaction => {
             }
         }        
         
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.font = '20px sans-serif';
+        Object.entries(kingdomCentroids).forEach(([kingdom, [avgX, avgY]]) => {
+            const colorIndex = Object.keys(kingdom_points).indexOf(kingdom);
+            context.fillStyle = 'black'; // Setting the text color to black for visibility
+            context.strokeStyle = 'white';
+            context.lineWidth = 0.2;
+            context.fillText(
+                kingdom,
+                avgX * squareSize + squareSize / 2,
+                avgY * squareSize + squareSize / 2
+            );
+            context.strokeText(
+              kingdom,
+              avgX * squareSize + squareSize / 2,
+              avgY * squareSize + squareSize / 2
+          );
+        });
 
         const attachment = new AttachmentBuilder(canvas.toBuffer(), { name: 'kingdom-control.png' });
         interaction.reply({ files: [attachment] });
